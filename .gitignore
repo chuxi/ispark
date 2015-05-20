@@ -1,0 +1,10 @@
+target
+.idea
+*.iml
+
+#web
+web/.tmp
+web/dist
+web/node_modules
+web/bower_components
+web/src
