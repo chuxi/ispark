@@ -8,10 +8,20 @@
  * Controller of the webApp
  */
 angular.module('webApp')
-  .controller('MainCtrl', function ($scope) {
-    $scope.awesomeThings = [
-      'HTML5 Boilerplate',
-      'AngularJS',
-      'Karma'
-    ];
+  .controller('MainCtrl', function ($scope, $rootScope, WebSocket, $window) {
+
+
+
+    var send = function(data) {
+
+    };
+
+    $rootScope.$on('sendNewEvent', function(event, data) {
+      if (!event.defaultPrevented) {
+
+      }
+    });
+
+
+
   });

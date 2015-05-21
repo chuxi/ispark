@@ -35,7 +35,7 @@ function getRestApiBase() {
   if (port === 3333 || port === 9000) {
     port = 8080;
   }
-  return location.protocol+"//"+location.hostname+":"+port+"/api";
+  return location.protocol+'//'+location.hostname+':'+port+'/api';
 }
 
 
@@ -58,10 +58,10 @@ angular
     'ngWebSocket',
     'ui.ace'
   ])
-  .config(function ($routeProvider, WebSocketProvider) {
-    WebSocketProvider
-      .prefix('')
-      .uri(getWebsocketProtocol() + '://' + location.hostname + ':' + getPort());
+  .factory('WebSocket', function ($websocket) {
+    return $websocket(getWebsocketProtocol() + '://' + location.hostname + ':' + getPort())
+  })
+  .config(function ($routeProvider) {
 
     $routeProvider
       .when('/', {
