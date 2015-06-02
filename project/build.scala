@@ -36,7 +36,6 @@ object ISparkBuild extends Build {
       name := "ispark-server",
 
       libraryDependencies ++= Seq(
-        commonsIO,
         unfilteredFilter,
         unfilteredWebsockets
       )
@@ -51,6 +50,7 @@ object ISparkBuild extends Build {
 
       libraryDependencies ++= Seq(
         sparkrepl,
+        commonLang3,
         scalatest
       )
     )
@@ -60,7 +60,7 @@ object ISparkBuild extends Build {
   object Dependencies {
     val unfilteredVersion     = "0.9.0-beta1"
     val akkaVersion           = "2.3.11"
-    val commonsIO             = "commons-io"                %          "commons-io"          %      "2.4"
+    val commonLang3           = "org.apache.commons"        %         "commons-lang3"        %      "3.4"
     val commonsHttp           = "org.apache.httpcomponents" %          "httpclient"          %      "4.4.1"
     val slf4jLog4j            = "org.slf4j"                 %         "slf4j-log4j12"        %      "1.7.12"
     val unfilteredFilter      = "net.databinder"            %%      "unfiltered-filter"      % unfilteredVersion

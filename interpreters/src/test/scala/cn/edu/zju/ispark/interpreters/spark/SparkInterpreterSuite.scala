@@ -2,7 +2,8 @@ package cn.edu.zju.ispark.interpreters.spark
 
 import java.util.Properties
 
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfter, FunSuite}
+import cn.edu.zju.ispark.interpreters.InterSuccess
+import org.scalatest.{BeforeAndAfterAll, FunSuite}
 
 /**
  * Created by king on 15-5-28.
@@ -23,8 +24,9 @@ class SparkInterpreterSuite extends FunSuite with BeforeAndAfterAll{
                   |sc.parallelize(1 to 10).foreach(x => accum += x)
                   |accum.value
                 """.stripMargin
-    si.interpret(input)
-    println(si.out.toString)
+    val rs = si.interpret(input)
+    assert(rs.asInstanceOf[InterSuccess].msg.contains("55"))
+//    println(si.out.toString)
   }
 
   override def afterAll(): Unit = {

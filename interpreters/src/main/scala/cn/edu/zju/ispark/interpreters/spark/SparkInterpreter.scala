@@ -1,87 +1,98 @@
 package cn.edu.zju.ispark.interpreters.spark
 
-import java.io._
-import java.net.{URL, URLClassLoader}
+
+import java.io.{ByteArrayOutputStream, File, PrintWriter}
+import java.net.URLClassLoader
+import java.util
 import java.util.Properties
 
-import cn.edu.zju.ispark.interpreters.{InterpreterResult, InterpreterContext, Interpreter}
-import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.repl.{SparkCommandLine, SparkIMain, SparkILoop}
+import cn.edu.zju.ispark.interpreters._
+import org.apache.commons.lang3.reflect.{FieldUtils, MethodUtils}
+import org.apache.spark.repl.{SparkCommandLine, SparkILoop, SparkIMain, SparkJLineCompletion}
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.{SparkConf, SparkContext}
 
-import scala.collection.mutable.{ListBuffer, ArrayBuffer}
+import scala.collection.mutable.ListBuffer
+import scala.reflect.api.{Universe => ApiUniverse}
 import scala.tools.nsc.Settings
+import scala.tools.nsc.interpreter.Results
 
 /**
  * Created by king on 15-5-28.
  * SparkInterpreter is the interpreter for Spark Code Paragraph
  *
  * @param props define the SparkConf information and other configuration details
- * @param sc define the SparkContext which could be created or passed into
  *
  */
-class SparkInterpreter(props: Properties, var sc: Option[SparkContext] = None) extends Interpreter {
+class SparkInterpreter(props: Properties) extends Interpreter {
 
   var interloop: SparkILoop = _
 
   var intermain: SparkIMain = _
 
-  var sqlc: Option[SQLContext] = None
+  var completor: SparkJLineCompletion = _
 
-  val out = new StringWriter()
+  var sc: SparkContext = _
+
+  var sqlc: SQLContext = _
+
+  val out = new ByteArrayOutputStream()
+
 
 
   setDefaultProperties()
 
 
-  def getSparkContext = sc.get
-
-  def isSparkContextInitialized = sc.isDefined
-
-  def getSQLContext = sqlc.get
-
   /**
    * create a sparkContext for the flowing evaluation, the problem is how to determine the classpath
    * @return SparkContext created
    */
-//  def createSparkContext: SparkContext = {
-//    logInfo("------ Create new SparkContext " + props.getProperty("spark.master") + " -------")
-//
-//    val execUri: String = System.getenv("SPARK_EXECUTOR_URI")
-//    val jars: Array[String] = SparkILoop.getAddedJars
-//
-//    var classServerUri: String = null
-//
-//    if (classServerUri == null) {
-//      try {
-//        val classServer = intermain.getClass.getMethod("classServerUri")
-//        classServerUri = classServer.invoke(intermain).toString
-//      } catch {
-//        case e: Exception => throw new Exception(e)
-//      }
-//    }
-//
-//    val conf: SparkConf = new SparkConf()
-//      .setMaster(props.getProperty("spark.master"))
-//      .setAppName(props.getProperty("spark.app.name"))
-//      .set("spark.repl.class.uri", classServerUri)
-//
-//    if (jars.length > 0) {
-//      conf.setJars(jars)
-//    }
-//
-//    if (execUri != null) {
-//      conf.set("spark.executor.uri", execUri)
-//    }
-//    if (System.getenv("SPARK_HOME") != null) {
-//      conf.setSparkHome(System.getenv("SPARK_HOME"))
-//    }
-//    conf.set("spark.scheduler.mode", "FAIR")
-//
-//    sc = Some(new SparkContext(conf))
-//
-//    sc.get
-//  }
+  def createSparkContext: SparkContext = {
+    logInfo("------ Create new SparkContext " + props.getProperty("spark.master") + " -------")
+
+    val execUri: String = System.getenv("SPARK_EXECUTOR_URI")
+    val jars: Array[String] = SparkILoop.getAddedJars
+
+    var classServerUri: String = null
+
+    if (classServerUri == null) {
+      try {
+        val classServer = intermain.getClass.getMethod("classServerUri")
+        classServerUri = classServer.invoke(intermain).toString
+      } catch {
+        case e: Exception => throw new Exception(e)
+      }
+    }
+
+    val conf: SparkConf = new SparkConf()
+      .setMaster(props.getProperty("spark.master"))
+      .setAppName(props.getProperty("spark.app.name"))
+      .set("spark.repl.class.uri", classServerUri)
+
+    if (jars.length > 0) {
+      conf.setJars(jars)
+    }
+
+    if (execUri != null) {
+      conf.set("spark.executor.uri", execUri)
+    }
+    if (System.getenv("SPARK_HOME") != null) {
+      conf.setSparkHome(System.getenv("SPARK_HOME"))
+    }
+    conf.set("spark.scheduler.mode", "FAIR")
+
+    sc = new SparkContext(conf)
+
+    sc
+  }
+
+  def createSQLContext: SQLContext = {
+    if (sqlc == null) {
+      sqlc = new SQLContext(sc)
+    }
+    sqlc
+  }
+
 
   /**
    * set default properties for the spark context
@@ -129,27 +140,36 @@ class SparkInterpreter(props: Properties, var sc: Option[SparkContext] = None) e
       val command: SparkCommandLine = new SparkCommandLine(argList.toList)
       settings = command.settings
     }
-    val pathSettings = settings.classpath
 
-    /**-------------------------------------**/
+    /**
+     * set classpath for settings
+     */
+    settings.classpath.value = currentClassPath.mkString(File.pathSeparator)
 
-    var classpath = ""
-    val paths = currentClassPath.mkString(File.pathSeparator)
 
-    settings.classpath.value = paths
+    /**
+     * too many restrictions in class SparkILoop,
+     * so we have to use reflection to get or set field and invoke private functions
+     */
 
-    // use an None input to initial the process, so we could use the inner function to createInterpreter
-    interloop = new SparkILoop(None , new PrintWriter(out), Some(props.getProperty("spark.master")))
-    org.apache.spark.repl.Main.interp = interloop
-    interloop.process(Array("-classpath", paths))
+    interloop = new SparkILoop(null, new PrintWriter(out))
+
+    /**
+     * implement the body of process(settings: Settings)
+     */
+    FieldUtils.writeField(interloop, "settings", settings, true)
+    MethodUtils.invokeMethod(interloop, "createInterpreter")
 
     // implicate transformation
     intermain = interloop
+    MethodUtils.invokeMethod(intermain, "setContextClassLoader")
+    intermain.initializeSynchronous()
 
-//    interloop.interpret()
-//    intermain.interpret()
-    sc = Some(interloop.sparkContext)
-    sqlc = Some(interloop.sqlContext)
+    completor = new SparkJLineCompletion(intermain)
+
+    initializeSpark()
+
+
   }
 
   def currentClassPath: List[File] = {
@@ -177,14 +197,62 @@ class SparkInterpreter(props: Properties, var sc: Option[SparkContext] = None) e
     paths
   }
 
+  def initializeSpark(): Unit = {
+    sc = createSparkContext
+    sqlc = createSQLContext
+
+    intermain.interpret("@transient var _binder = new java.util.HashMap[String, Object]()")
+    val binder = getValue("_binder").asInstanceOf[util.HashMap[String, AnyRef]]
+    binder.put("sc", sc)
+    binder.put("sqlc", sqlc)
+
+    intermain.beQuietDuring {
+      intermain.interpret("""
+         @transient val sc = {
+           val _sc = _binder.get("sc").asInstanceOf[org.apache.spark.SparkContext]
+           println("Spark context available as sc.")
+           _sc
+         }
+                          """)
+      intermain.interpret("""
+         @transient val sqlc = {
+           val _sqlContext = _binder.get("sqlc").asInstanceOf[org.apache.spark.sql.SQLContext]
+           println("SQL context available as sqlContext.")
+           _sqlContext
+         }
+                          """)
+      intermain.interpret("import org.apache.spark.SparkContext._")
+      intermain.interpret("import sqlContext.implicits._")
+      intermain.interpret("import sqlContext.sql")
+      intermain.interpret("import org.apache.spark.sql.functions._")
+    }
+  }
+
+  def getValue(name: String): AnyRef = {
+    val ret: AnyRef = intermain.valueOfTerm(name)
+    ret match {
+      case None => null
+      case Some(x: AnyRef)  =>  x
+      case _  =>  ret
+    }
+  }
+
+
+
+
+
+
   /**
    * Closes interpreter. You may want to free your resources up here.
    * close() is called only once
    */
   override def close(): Unit = {
-    org.apache.spark.repl.Main.interp = null
-    if (interloop.sparkContext != null)
-      interloop.sparkContext.stop()
+//    MethodUtils.invokeMethod(interloop, "closeInterpreter")
+    if (intermain ne null) {
+      sc.stop()
+      intermain.close()
+      intermain = null
+    }
   }
 
   /**
@@ -193,9 +261,25 @@ class SparkInterpreter(props: Properties, var sc: Option[SparkContext] = None) e
    * @param st statements to run
    * @return
    */
-  override def interpret(st: String): Unit = {
-    // write into console
+  override def interpret(st: String): InterpreterResult = {
+    out.flush()
+    out.reset()
 
-    println(out.toString)
+    val res = scala.Console.withOut(out) {
+      interloop.interpret(st)
+    }
+
+    res match {
+      case Results.Success => InterSuccess(out.toString)
+      case Results.Error => InterError(out.toString)
+    }
+
+//    println(out.toString)
   }
+
+
+
+
+
+
 }

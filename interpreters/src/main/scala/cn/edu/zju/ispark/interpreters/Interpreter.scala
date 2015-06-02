@@ -14,7 +14,7 @@ import cn.edu.zju.ispark.common.Logging
  * you must implement open() close() and interpret() three most important interfaces.
  */
 
-trait Interpreter extends Logging {
+trait Interpreter extends Logging{
 
   var classloaderUrls: Array[URL] = null
 
@@ -35,7 +35,7 @@ trait Interpreter extends Logging {
    *
    * @param st statements to run
    */
-  def interpret(st: String): Unit
+  def interpret(st: String): InterpreterResult
 
 
 
