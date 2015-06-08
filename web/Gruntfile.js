@@ -18,7 +18,7 @@ module.exports = function (grunt) {
   // Configurable paths for the application
   var appConfig = {
     app: require('./bower.json').appPath || 'app',
-    dist: 'dist'
+    dist: '../server/src/main/resources/www'
   };
 
   // Define the configuration for all the tasks
@@ -156,7 +156,7 @@ module.exports = function (grunt) {
       },
       server: {
         options: {
-          map: true,
+          map: true
         },
         files: [{
           expand: true,

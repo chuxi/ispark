@@ -265,16 +265,26 @@ class SparkInterpreter(props: Properties) extends Interpreter {
     out.flush()
     out.reset()
 
-    val res = scala.Console.withOut(out) {
-      interloop.interpret(st)
-    }
-
-    res match {
-      case Results.Success => InterSuccess(out.toString)
-      case Results.Error => InterError(out.toString)
-    }
+    interpret(st.split("\n").filter(_.trim.nonEmpty))
 
 //    println(out.toString)
+  }
+
+  def interpret(st: Array[String]): InterpreterResult = {
+
+    var succ: Boolean = true
+    for(s <- st) {
+      val r = scala.Console.withOut(out) {
+        interloop.interpret(s)
+      }
+      if (r == Results.Error || r == Results.Incomplete)
+        succ = false
+    }
+
+    if (succ)
+      InterSuccess(out.toString)
+    else
+      InterError(out.toString)
   }
 
 

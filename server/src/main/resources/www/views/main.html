@@ -1,0 +1,1 @@
+<div class="container"> <div ng-controller="NavCtrl"> <h5><a href="javascript:void(0);" ng-click="createNewNote()">Create new note</a></h5> <ul> <li ng-repeat="note in notes track by $index"> <a href="#/notebook/{{note.id}}">{{note.name || 'Note ' + note.id}}</a> </li> </ul> </div> </div>

@@ -16,17 +16,37 @@ class SparkInterpreterSuite extends FunSuite with BeforeAndAfterAll{
     si.open()
   }
 
+  def assertContains(message: String, output: String) {
+    val isContain = output.contains(message)
+    assert(isContain,
+      "Interpreter output did not contain '" + message + "':\n" + output)
+  }
+
+  def assertDoesNotContain(message: String, output: String) {
+    val isContain = output.contains(message)
+    assert(!isContain,
+      "Interpreter output contained '" + message + "':\n" + output)
+  }
+
 
 
   test("open a spark interpreter") {
-    val input = """
-                  |val accum = sc.accumulator(0)
-                  |sc.parallelize(1 to 10).foreach(x => accum += x)
-                  |accum.value
-                """.stripMargin
-    val rs = si.interpret(input)
-    assert(rs.asInstanceOf[InterSuccess].msg.contains("55"))
-//    println(si.out.toString)
+    val rs = si.interpret("""
+                        |var v = 7
+                        |sc.parallelize(1 to 10).map(x => v).collect().reduceLeft(_+_)
+                        |v = 10
+                        |sc.parallelize(1 to 10).map(x => v).collect().reduceLeft(_+_)
+                      """.stripMargin).asInstanceOf[InterSuccess].msg
+    val rs1 = si.interpret("""
+                           |v = 20
+                           |sc.parallelize(1 to 10).map(x => v).collect().reduceLeft(_+_)
+                         """.stripMargin).asInstanceOf[InterSuccess].msg
+    assertDoesNotContain("error:", rs)
+    assertDoesNotContain("Exception", rs)
+    assertContains("res0: Int = 70", rs)
+    assertContains("res1: Int = 100", rs)
+    assertContains("res2: Int = 200", rs1)
+
   }
 
   override def afterAll(): Unit = {

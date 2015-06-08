@@ -4,6 +4,9 @@ import java.io.{IOException, FileInputStream, InputStreamReader, File}
 import java.util.Properties
 
 
+import com.fasterxml.jackson.databind.{SerializationFeature, ObjectMapper}
+import com.fasterxml.jackson.module.scala.DefaultScalaModule
+
 import scala.collection.Map
 import scala.collection.JavaConversions._
 
@@ -11,17 +14,6 @@ import scala.collection.JavaConversions._
  * Created by king on 15-5-22.
  */
 object Utils extends Logging {
-
-
-  /** Returns the system properties map that is thread-safe to iterator over. It gets the
-    * properties which have been set explicitly, as well as those for which only a default value
-    * has been defined. */
-  def getSystemProperties: Map[String, String] = {
-    val sysProps = for (key <- System.getProperties.stringPropertyNames()) yield
-    (key, System.getProperty(key))
-
-    sysProps.toMap
-  }
 
 
   /** Load properties present in the given file. */
@@ -47,6 +39,18 @@ object Utils extends Logging {
     props.get("ISPARK_HOME").map(t => s"$t${File.separator}conf")
       .map(t => new File(s"$t${File.separator}ispark.conf")).filter(_.isFile)
       .map(_.getAbsolutePath).orNull
+  }
+
+
+  /**
+   * JSON mapperobject
+   */
+  val mapper = {
+    val _mapper = new ObjectMapper()
+    _mapper.registerModule(DefaultScalaModule)
+    _mapper.enable(SerializationFeature.INDENT_OUTPUT)
+    //    _mapper.enableDefaultTyping(ObjectMapper.DefaultTyping.OBJECT_AND_NON_CONCRETE)
+    _mapper
   }
 
 

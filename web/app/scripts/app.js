@@ -35,7 +35,7 @@ function getRestApiBase() {
   if (port === 3333 || port === 9000) {
     port = 8080;
   }
-  return location.protocol+'//'+location.hostname+':'+port+'/api';
+  return location.protocol+'//'+location.hostname+':'+port;
 }
 
 
@@ -72,18 +72,18 @@ angular
         templateUrl: 'views/about.html',
         controller: 'AboutCtrl'
       })
-      .when('/interpreter', {
-        templateUrl: 'views/interpreter.html',
-        controller: 'InterpreterCtrl'
-      })
-      .when('/notebook/:noteId', {
-        templateUrl: 'views/notebooks.html',
-        controller: 'NotebookCtrl'
-      })
-      .when('/notebook/:noteId/paragraph/:paragraphId?', {
-        templateUrl: 'views/notebooks.html',
-        controller: 'NotebookCtrl'
-      })
+      //.when('/interpreter', {
+      //  templateUrl: 'views/interpreter.html',
+      //  controller: 'InterpreterCtrl'
+      //})
+      //.when('/notebook/:noteId', {
+      //  templateUrl: 'views/notebooks.html',
+      //  controller: 'NotebookCtrl'
+      //})
+      //.when('/notebook/:noteId/paragraph/:paragraphId?', {
+      //  templateUrl: 'views/notebooks.html',
+      //  controller: 'NotebookCtrl'
+      //})
       .otherwise({
         redirectTo: '/'
       });
