@@ -1,29 +1,33 @@
 package cn.edu.zju.ispark.server
 
-import cn.edu.zju.ispark.common.{Logging, Utils}
-import com.fasterxml.jackson.annotation.JsonValue
+import java.util.UUID
+
+import cn.edu.zju.ispark.common.Logging
+import org.json4s.JsonAST.JValue
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods._
 import unfiltered.netty.websockets.WebSocket
 
 /**
  * Created by king on 15-6-3.
  */
 
-trait SockMessgae
-case class SessionSockMessage(header: JsonValue, session: String, msgType: String, content: String) extends SockMessgae
 
 trait WebSockWrapper {
-  def send(m: SockMessgae)
+  def send(header: JValue, session: JValue, msgType: String, content: JValue)
 }
 
 class WebSockWrapperImpl(sock: WebSocket) extends WebSockWrapper with Logging {
-  private val mapper = Utils.mapper
 
-  def send(m: SockMessgae) = {
+  private def send(m: String) = {
     logTrace("Sending " + m)
-    sock.send(mapper.writeValueAsString(m))
+    sock.send(m)
   }
 
-  def send(header: String, session: String, msgType: String, content: String): Unit = {
-    send(SessionSockMessage(header, session, msgType, content))
+  def send(header: JValue, session: JValue, msgType: String, content: JValue): Unit = {
+    val respJson = ("parent_header" -> header) ~ ("msg_type" -> msgType) ~ ("msg_id" -> UUID.randomUUID().toString) ~
+      ("header" -> ("username" -> "kernel") ~ ("session" -> session))
+
+    send(pretty(render(respJson)))
   }
 }

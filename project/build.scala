@@ -13,6 +13,7 @@ object ISparkBuild extends Build {
     scalaVersion := "2.10.5",
     fork in Test in ThisBuild := true,
     parallelExecution in Test in ThisBuild := false,
+
     javaOptions in ThisBuild ++= Seq("-Xmx256M", "-XX:MaxPermSize=128M")
   )
 
@@ -24,7 +25,7 @@ object ISparkBuild extends Build {
       name := "ispark-common",
 
       libraryDependencies ++= Seq(
-        jacksonscala,
+        json4sjack,
         slf4jLog4j,
         scalatest
       )
@@ -32,16 +33,19 @@ object ISparkBuild extends Build {
 
 
   lazy val server = Project(id = "server", base = file("server"))
-    .dependsOn(common)
+    .dependsOn(common, interpreters)
     .settings(
       name := "ispark-server",
+      updateOptions := updateOptions.value.withCachedResolution(true),
 
       libraryDependencies ++= Seq(
         akka,
         akkaRemote,
+        akkaTestKit,
         commonIO,
         commonsHttp,
-        jacksonscala,
+        commonsexec,
+        json4sjack,
         unfilteredFilter,
         unfilteredWebsockets
       )
@@ -70,15 +74,16 @@ object ISparkBuild extends Build {
     val commonIO              = "commons-io"                    %  "commons-io"                   %      "2.4"
     val commonsHttp           = "org.apache.httpcomponents"     %  "httpclient"                   %      "4.4.1"
     val slf4jLog4j            = "org.slf4j"                     %  "slf4j-log4j12"                %      "1.7.12"
+    val commonsexec           = "org.apache.commons"            %  "commons-exec"                 %       "1.3"
     val unfilteredFilter      = "net.databinder"                %% "unfiltered-filter"            % unfilteredVersion
     val unfilteredWebsockets  = "net.databinder"                %% "unfiltered-netty-websockets"  % unfilteredVersion
     val unfilteredJson        = "net.databinder"                %% "unfiltered-json"              % unfilteredVersion
     val akka                  = "com.typesafe.akka"             %% "akka-actor"                   %    akkaVersion
     val akkaRemote            = "com.typesafe.akka"             %% "akka-remote"                  %    akkaVersion
+    val akkaTestKit           = "com.typesafe.akka"             %  "akka-testkit_2.10"            %    akkaVersion
     val scalatest             = "org.scalatest"                 %% "scalatest"                    %      "2.2.4"
     val sparkrepl             = "org.apache.spark"              %% "spark-repl"                   %      "1.3.1"
-    val jacksonscala          = "com.fasterxml.jackson.module"  %% "jackson-module-scala"         %      "2.5.2"
-    val jacksonannot          = "com.fasterxml.jackson.core"    %  "jackson-annotations"          %      "2.5.2"
+    val json4sjack            = "org.json4s"                    %  "json4s-jackson_2.10"          %     "3.3.0.RC2"
   }
 
 

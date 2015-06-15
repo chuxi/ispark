@@ -8,8 +8,8 @@ import scala.collection.JavaConversions._
  */
 object AkkaConfigUtils {
 
-  private val SecureCookiePath = "akka.remote.netty.secure-cookie"
-  private val RequireCookiePath = "akka.remote.netty.require-cookie"
+  private val SecureCookiePath = "akka.remote.secure-cookie"
+  private val RequireCookiePath = "akka.remote.require-cookie"
 
   /** Creates a configuration that requires the specified secure requiredCookie if defined. */
   def requireCookie(baseConfig: Config, cookie: String) =

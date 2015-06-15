@@ -8,3 +8,7 @@ web/dist
 web/node_modules
 web/bower_components
 web/src
+
+logs/
+.akka-cookie
+work/

@@ -1,13 +1,13 @@
 package cn.edu.zju.ispark.server
 
-import java.io.{File, FileOutputStream, IOException}
+import java.io._
 import java.net.{URLDecoder, URLEncoder}
 import java.text.SimpleDateFormat
 import java.util.{Date, UUID}
 
-import cn.edu.zju.ispark.common.Utils
-import com.fasterxml.jackson.annotation.JsonSubTypes.Type
-import com.fasterxml.jackson.annotation.{JsonSubTypes, JsonTypeInfo}
+import org.json4s.ShortTypeHints
+import org.json4s.jackson.Serialization.{read, write}
+
 
 /**
  * Created by king on 15-6-2.
@@ -15,15 +15,15 @@ import com.fasterxml.jackson.annotation.{JsonSubTypes, JsonTypeInfo}
  * removed the NBSerializer
  */
 
-@JsonTypeInfo(
-  use = JsonTypeInfo.Id.NAME,
-  include = JsonTypeInfo.As.PROPERTY,
-  property = "type")
-@JsonSubTypes(Array(
-  new Type(value = classOf[ScalaOutput], name = "scalaoutput"),
-  new Type(value = classOf[ScalaError], name = "scalaerror"),
-  new Type(value = classOf[ScalaStream], name = "scalastream")
-))
+//@JsonTypeInfo(
+//  use = JsonTypeInfo.Id.NAME,
+//  include = JsonTypeInfo.As.PROPERTY,
+//  property = "type")
+//@JsonSubTypes(Array(
+//  new Type(value = classOf[ScalaOutput], name = "scalaoutput"),
+//  new Type(value = classOf[ScalaError], name = "scalaerror"),
+//  new Type(value = classOf[ScalaStream], name = "scalastream")
+//))
 trait Output
 case class ScalaOutput(prompt_number: Int, html: Option[String], text: Option[String]) extends Output
 case class ScalaError(prompt_number: Int, traceback: String) extends Output
@@ -33,16 +33,16 @@ case class ScalaStream(text: String, stream: String) extends Output
  * Jackson Polymorphism, reference to: http://stackoverflow.com/questions/18027233/jackson-scala-json-deserialization-to-case-classes
  */
 
-@JsonTypeInfo(
-  use = JsonTypeInfo.Id.NAME,
-  include = JsonTypeInfo.As.PROPERTY,
-  property = "type")
-@JsonSubTypes(Array(
-  new Type(value = classOf[CodeCell], name = "codecell"),
-  new Type(value = classOf[MarkdownCell], name = "markdowncell"),
-  new Type(value = classOf[RawCell], name = "rawcell"),
-  new Type(value = classOf[HeadingCell], name = "headingcell")
-))
+//@JsonTypeInfo(
+//  use = JsonTypeInfo.Id.NAME,
+//  include = JsonTypeInfo.As.PROPERTY,
+//  property = "type")
+//@JsonSubTypes(Array(
+//  new Type(value = classOf[CodeCell], name = "codecell"),
+//  new Type(value = classOf[MarkdownCell], name = "markdowncell"),
+//  new Type(value = classOf[RawCell], name = "rawcell"),
+//  new Type(value = classOf[HeadingCell], name = "headingcell")
+//))
 trait Cell
 case class CodeCell(input: String, language: String, collapsed: Boolean,prompt_number:Option[Int], outputs: List[Output]) extends Cell
 case class MarkdownCell(source: String) extends Cell
@@ -65,7 +65,10 @@ class NotebookManager(val name: String, val notebookDir: File) {
 
   val idToName = collection.mutable.Map[String, String]()
 
-  val mapper = Utils.mapper
+  implicit val formats = org.json4s.jackson.Serialization.formats(ShortTypeHints(List(
+    classOf[CodeCell], classOf[MarkdownCell], classOf[RawCell], classOf[HeadingCell],
+    classOf[ScalaOutput], classOf[ScalaError], classOf[ScalaStream]
+  )))
 
 
   def listNotebooks = {
@@ -101,7 +104,7 @@ class NotebookManager(val name: String, val notebookDir: File) {
     val nbData = getNotebook(nbId, nbName)
     nbData.map { nb =>
       val name = incrementFileName(nb._2)
-      val oldNB = mapper.readValue(nb._3, classOf[Notebook])
+      val oldNB = nb._3
       val id = notebookId(name)
       save(Some(id), name, Notebook(new Metadata(name), oldNB.worksheets, oldNB.autosaved, None), false)
       id
@@ -116,10 +119,10 @@ class NotebookManager(val name: String, val notebookDir: File) {
     val nameToUse = id flatMap idToName.get getOrElse name
     for (notebook <- load(nameToUse)) yield {
 //      val data = FileUtils.readFileToString(notebookFile(notebook.name))
-      val data = mapper.readValue(notebookFile(notebook.name), classOf[Notebook])
+      val data = read[Notebook](new BufferedReader(new FileReader(notebookFile(notebook.name))))
       val df = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss z'('Z')'")
       val last_mtime = df.format(new Date(notebookFile(notebook.name).lastModified()))
-      (last_mtime, notebook.name, mapper.writeValueAsString(data))
+      (last_mtime, notebook.name, data)
     }
   }
 
@@ -143,7 +146,7 @@ class NotebookManager(val name: String, val notebookDir: File) {
     if (!overwrite && file.exists()) throw new NotebookExistsException("Notebook " + name + " already exists.")
     val nb = if (nbI.name != name) nbI.copy(new Metadata(name)) else nbI
 
-    mapper.writeValue(new FileOutputStream(file), nb)
+    write(nb, new FileOutputStream(file))
 
     // If there was an old file that's different, then delete it because this is a rename
     id flatMap idToName.get foreach { oldName =>
@@ -157,7 +160,7 @@ class NotebookManager(val name: String, val notebookDir: File) {
   def load(name: String): Option[Notebook] = {
     val file = notebookFile(name)
     if (file.exists())
-      Some(mapper.readValue(file, classOf[Notebook]))
+      Some(read[Notebook](new BufferedReader(new FileReader(notebookFile(name)))))
     else None
   }
 

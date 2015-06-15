@@ -1,12 +1,14 @@
 package cn.edu.zju.ispark.server.calculator
 
+import org.json4s.JsonAST.JValue
+
 /**
  * Created by king on 15-6-3.
  */
 
 
 sealed trait CalcServiceMessage
-case class SessionRequest(header: String, session: String, kernelRequest: CalcRequest) extends CalcServiceMessage
+case class SessionRequest(header: JValue, session: JValue, kernelRequest: CalcRequest) extends CalcServiceMessage
 case object InterruptCalculator extends CalcServiceMessage
 
 sealed trait CalcRequest

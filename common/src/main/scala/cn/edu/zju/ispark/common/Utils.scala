@@ -1,14 +1,10 @@
 package cn.edu.zju.ispark.common
 
-import java.io.{IOException, FileInputStream, InputStreamReader, File}
+import java.io.{File, FileInputStream, IOException, InputStreamReader}
 import java.util.Properties
 
-
-import com.fasterxml.jackson.databind.{SerializationFeature, ObjectMapper}
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
-
-import scala.collection.Map
 import scala.collection.JavaConversions._
+import scala.collection.Map
 
 /**
  * Created by king on 15-5-22.
@@ -45,13 +41,13 @@ object Utils extends Logging {
   /**
    * JSON mapperobject
    */
-  val mapper = {
-    val _mapper = new ObjectMapper()
-    _mapper.registerModule(DefaultScalaModule)
-    _mapper.enable(SerializationFeature.INDENT_OUTPUT)
-    //    _mapper.enableDefaultTyping(ObjectMapper.DefaultTyping.OBJECT_AND_NON_CONCRETE)
-    _mapper
-  }
+//  val mapper = {
+//    val _mapper = new ObjectMapper()
+//    _mapper.registerModule(DefaultScalaModule)
+//    _mapper.enable(SerializationFeature.INDENT_OUTPUT)
+//    //    _mapper.enableDefaultTyping(ObjectMapper.DefaultTyping.OBJECT_AND_NON_CONCRETE)
+//    _mapper
+//  }
 
 
 

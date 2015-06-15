@@ -1,11 +1,19 @@
 package cn.edu.zju.ispark.server
 
 
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 import akka.actor.ActorSystem
-import cn.edu.zju.ispark.common.{ISparkNotebookConfig, Logging, Utils}
+import cn.edu.zju.ispark.common.{ISparkNotebookConfig, Logging}
+import cn.edu.zju.ispark.server.calculator.InterruptCalculator
+import cn.edu.zju.ispark.server.kernel.{Kernel, KernelManager}
 import com.typesafe.config.ConfigFactory
+import org.json4s.JsonDSL._
+import org.json4s.NoTypeHints
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization.write
 import unfiltered.netty.websockets._
 import unfiltered.request._
 import unfiltered.response._
@@ -18,26 +26,28 @@ class Dispatcher(config: ISparkNotebookConfig) extends Logging {
 
   val executionCounter = new AtomicInteger(0)
 
-  val mapper = Utils.mapper
   val nbm = new NotebookManager(config.projectName, config.notebooksDir)
   val system = ActorSystem("ISparkNotebookServer", AkkaConfigUtils.optSecureCookie(ConfigFactory.load("akka-server.conf"), akka.util.Crypt.generateSecureCookie))
 
-  import scala.collection.JavaConversions._
-  val sockets: scala.collection.concurrent.Map[Int, WebSocket] =
-    new java.util.concurrent.ConcurrentHashMap[Int, WebSocket]
+  val kernelIdToCalcService = collection.mutable.HashMap[String, CalcWebSocketService]()
 
-  def notify(msg: String) = sockets.values.foreach { s =>
-    if(s.channel.isActive) s.send(msg)
-  }
+  implicit val formats = Serialization.formats(NoTypeHints)
 
   object WebSockets {
     val intent: unfiltered.netty.websockets.Intent = {
-      case _ => {
-        case Open(s) =>
-          logInfo(s"open a socket $executionCounter)")
-          s.send("sys|hola!")
-        case Message(s, Text(msg)) =>
-          logInfo(s"received message $msg from socket $s")
+      case req@Path(Seg("kernels" :: kernelId :: channel :: Nil)) => {
+        case Open(websock) =>
+          for (calcService <- kernelIdToCalcService.get(kernelId)) {
+            logInfo("Opening Socket " + channel + " for " + kernelId + " to " + websock)
+            calcService.sparkPromise.success(new WebSockWrapperImpl(websock))
+          }
+        case Message(socket, Text(msg)) =>
+          for (calcService <- kernelIdToCalcService.get(kernelId)) {
+            logDebug("Message for " + kernelId + ":" + msg)
+            // design the message formulation
+
+
+          }
         case Close(s) =>
           logInfo(s"close socket $s")
         case Error(s, e) =>
@@ -102,20 +112,48 @@ class Dispatcher(config: ISparkNotebookConfig) extends Logging {
 
     }
 
+    // To every connection to the websocket, start a kernel for service
+    val kernelIntent: unfiltered.netty.async.Plan.Intent = {
+      case req@POST(Path(Seg("kernels" :: Nil))) =>
+        logInfo("Starting kernel")
+        req.respond(startKernel(UUID.randomUUID().toString))
+
+      case req@POST(Path(Seg("kernels" :: kernelId :: "interrupt" :: Nil))) =>
+        logInfo("Interrupting kernel " + kernelId)
+        for (calcService <- kernelIdToCalcService.get(kernelId)) {
+          calcService.calcActor ! InterruptCalculator
+        }
+        req.respond(PlainTextContent ~> Ok)
+    }
+
+    def startKernel(kernelId: String) = {
+      val kernel = new Kernel(system)
+      KernelManager.add(kernelId, kernel)
+      val service = new CalcWebSocketService(system, List(), List(), kernel.remoteDeployFuture)
+      kernelIdToCalcService += kernelId -> service
+      val json = ("kernel_id" -> kernelId) ~ ("ws_url" -> "ws:/%s:%d".format(config.get("host"), config.getInt("port")))
+      JsonContent ~> ResponseString(compact(render(json))) ~> Ok
+    }
+
+
+
+
+    def getNotebook(id: Option[String], name: String) = {
+      try {
+        val response = for ((lastMod, name, data) <- nbm.getNotebook(id, name)) yield {
+          JsonContent ~> ResponseHeader("Content-Disposition", "attachment; filename=\"%s.snb".format(name) :: Nil) ~> ResponseHeader("Last-Modified", lastMod :: Nil) ~> ResponseString(write(data) ) ~> Ok
+        }
+        response.getOrElse(PlainTextContent ~> ResponseString("Notebook not found.") ~> NotFound)
+      } catch {
+        case e: Exception =>
+          logError("Error accessing notebook %s".format(name), e)
+          InternalServerError
+      }
+    }
+
   }
 
-  def getNotebook(id: Option[String], name: String) = {
-    try {
-      val response = for ((lastMod, name, data) <- nbm.getNotebook(id, name)) yield {
-        JsonContent ~> ResponseHeader("Content-Disposition", "attachment; filename=\"%s.snb".format(name) :: Nil) ~> ResponseHeader("Last-Modified", lastMod :: Nil) ~> ResponseString(data) ~> Ok
-      }
-      response.getOrElse(PlainTextContent ~> ResponseString("Notebook not found.") ~> NotFound)
-    } catch {
-      case e: Exception =>
-        logError("Error accessing notebook %s".format(name), e)
-        InternalServerError
-    }
-  }
+
 
 
 
