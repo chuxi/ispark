@@ -2,6 +2,7 @@ package cn.edu.zju.ispark.interpreters.spark
 
 
 import java.io.{ByteArrayOutputStream, File, PrintWriter}
+import java.lang.reflect.InvocationTargetException
 import java.net.URLClassLoader
 import java.util
 import java.util.Properties
@@ -15,7 +16,7 @@ import org.apache.spark.{SparkConf, SparkContext}
 import scala.collection.mutable.ListBuffer
 import scala.reflect.api.{Universe => ApiUniverse}
 import scala.tools.nsc.Settings
-import scala.tools.nsc.interpreter.Results
+import scala.tools.nsc.interpreter.{Results => IR}
 
 /**
  * Created by king on 15-5-28.
@@ -38,10 +39,7 @@ class SparkInterpreter(props: Properties) extends Interpreter {
 
   val out = new ByteArrayOutputStream()
 
-
-
   setDefaultProperties()
-
 
   /**
    * create a sparkContext for the flowing evaluation, the problem is how to determine the classpath
@@ -115,10 +113,6 @@ class SparkInterpreter(props: Properties) extends Interpreter {
       props.setProperty("args", "")
   }
 
-
-
-
-
   /**
    * Opens interpreter. You may want to place your initialize routine here.
    * open() is called only once
@@ -146,12 +140,10 @@ class SparkInterpreter(props: Properties) extends Interpreter {
      */
     settings.classpath.value = currentClassPath.mkString(File.pathSeparator)
 
-
     /**
      * too many restrictions in class SparkILoop,
      * so we have to use reflection to get or set field and invoke private functions
      */
-
     interloop = new SparkILoop(null, new PrintWriter(out))
 
     /**
@@ -168,8 +160,6 @@ class SparkInterpreter(props: Properties) extends Interpreter {
     completor = new SparkJLineCompletion(intermain)
 
     initializeSpark()
-
-
   }
 
   def currentClassPath: List[File] = {
@@ -183,16 +173,13 @@ class SparkInterpreter(props: Properties) extends Interpreter {
 
   def classPath(cl: ClassLoader): ListBuffer[File] = {
     val paths = ListBuffer[File]()
-
     if (cl == null)
       return paths
-
-    if (cl.isInstanceOf[URLClassLoader]) {
-      val ucl = cl.asInstanceOf[URLClassLoader]
-      val urls = ucl.getURLs
-      if (urls != null)
-        for (url <- urls)
+    cl match {
+      case ucl: URLClassLoader =>
+        for(url <- ucl.getURLs)
           paths += new File(url.getFile)
+      case _ =>
     }
     paths
   }
@@ -238,10 +225,6 @@ class SparkInterpreter(props: Properties) extends Interpreter {
   }
 
 
-
-
-
-
   /**
    * Closes interpreter. You may want to free your resources up here.
    * close() is called only once
@@ -270,26 +253,40 @@ class SparkInterpreter(props: Properties) extends Interpreter {
 //    println(out.toString)
   }
 
-  def interpret(st: Array[String]): InterpreterResult = {
-
-    var succ: Boolean = true
+  private def interpret(st: Array[String]): InterpreterResult = {
+    var incomplete: String = ""
+    var r: IR.Result = null
     for(s <- st) {
-      val r = scala.Console.withOut(out) {
-        interloop.interpret(s)
+      r = try {
+        scala.Console.withOut(out) {
+          interloop.interpret(incomplete + s)
+        }
+      } catch {
+        case e: Exception =>
+          logInfo("Interpreter Exception for code: " +  s)
+          return InterError(getMostRelevantMessage(e))
       }
-      if (r == Results.Error || r == Results.Incomplete)
-        succ = false
+
+      r match {
+        case IR.Error => return InterError(out.toString)
+        case IR.Incomplete => incomplete = incomplete + s + "\n"
+        case _ => incomplete = ""
+      }
     }
 
-    if (succ)
-      InterSuccess(out.toString)
-    else
-      InterError(out.toString)
+    r match {
+      case IR.Incomplete => InterIncomplete("Incomplete expression")
+      case IR.Success => InterSuccess(out.toString)
+    }
+
   }
 
 
-
-
-
+  def getMostRelevantMessage(ex: Exception): String = {
+    ex match {
+      case e: InvocationTargetException if e.getCause != null => e.getCause.getMessage
+      case e: Exception => e.getMessage
+    }
+  }
 
 }

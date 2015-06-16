@@ -24,7 +24,7 @@ class SparkCalculatorSuite(_system: ActorSystem) extends TestKit(_system) with I
 
   def evaluate(input: String, output: String): Unit = {
     calculator ! ExecuteRequest(1, input)
-    val r = within(30 seconds) {
+    val r = within(30.seconds) {
       expectMsgPF() {
         case ExecuteResponse(e) =>
           e

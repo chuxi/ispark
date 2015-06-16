@@ -8,3 +8,5 @@ sealed trait InterpreterResult extends Serializable
 case class InterSuccess(msg: String) extends InterpreterResult
 
 case class InterError(msg: String) extends InterpreterResult
+
+case class InterIncomplete(msg: String) extends InterpreterResult

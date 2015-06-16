@@ -65,7 +65,6 @@ class KernelSuite(_system: ActorSystem) extends TestKit(_system) with ImplicitSe
 
 
   def sendCode(code:String) {
-    println("send code!!!!!!!!!!!!!!!!!!!!!!")
     service.calcActor ! SessionRequest(JInt(1), JInt(1), ExecuteRequest(1, code))
   }
 
