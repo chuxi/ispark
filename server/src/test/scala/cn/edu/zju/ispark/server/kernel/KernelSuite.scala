@@ -43,7 +43,6 @@ class KernelSuite(_system: ActorSystem) extends TestKit(_system) with ImplicitSe
   }
 
   override def afterAll() {
-    println("Shutting down %d kernels".format(startedKernels.size))
     KernelManager.shutdown()
   }
 
@@ -78,8 +77,21 @@ class KernelSuite(_system: ActorSystem) extends TestKit(_system) with ImplicitSe
     assertCode("1+1", "res0: Int = 2")
   }
 
+  test("complex code interpreter") {
+    val input = """var v = 7
+                  |sc.parallelize(1 to 10).map(x => v).collect().reduceLeft(_+_)
+                  |v = 10
+                  |sc.parallelize(1 to 10).map(x => v).collect().reduceLeft(_+_)
+                """.stripMargin
 
+    val output =
+      """v: Int = 7
+        |res0: Int = 70
+        |v: Int = 10
+        |res1: Int = 100
+      """.stripMargin
 
-
+    assertCode(input, output)
+  }
 
 }

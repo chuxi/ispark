@@ -6,9 +6,10 @@ import java.util.concurrent.atomic.AtomicInteger
 
 import akka.actor.ActorSystem
 import cn.edu.zju.ispark.common.{ISparkNotebookConfig, Logging}
-import cn.edu.zju.ispark.server.calculator.InterruptCalculator
+import cn.edu.zju.ispark.server.calculator.{ExecuteRequest, SessionRequest, InterruptCalculator}
 import cn.edu.zju.ispark.server.kernel.{Kernel, KernelManager}
 import com.typesafe.config.ConfigFactory
+import org.json4s.JsonAST.{JString, JField, JObject}
 import org.json4s.JsonDSL._
 import org.json4s.NoTypeHints
 import org.json4s.jackson.JsonMethods._
@@ -45,13 +46,33 @@ class Dispatcher(config: ISparkNotebookConfig) extends Logging {
           for (calcService <- kernelIdToCalcService.get(kernelId)) {
             logDebug("Message for " + kernelId + ":" + msg)
             // design the message formulation
+            val json = parse(msg)
 
+            for {
+              JObject(obj) <- json
+              JField("header", header) <- obj
+              JField("session", session) <- header
+              JField("msg_type", msgType) <- header
+              JField("content", content) <- obj
+            } {
+              msgType match {
+                case JString("execute_request") =>
+                  for (JField("code", JString(code)) <- content) {
+                    val execCounter = executionCounter.incrementAndGet()
+                    calcService.calcActor ! SessionRequest(header, session, ExecuteRequest(execCounter, code))
+                  }
+                case x => logWarning("Unrecognized websocket message: " + msg)
+              }
+            }
 
           }
         case Close(s) =>
           logInfo(s"close socket $s")
+          for (kernel <- KernelManager.get(kernelId)) {
+            kernel.shutdown()
+          }
         case Error(s, e) =>
-          e.printStackTrace
+          e.printStackTrace()
 
       }
 
@@ -74,7 +95,7 @@ class Dispatcher(config: ISparkNotebookConfig) extends Logging {
           case _: NotebookExistsException => PlainTextContent ~> Conflict
         }
 
-      case req @DELETE(Path(Seg("notebooks" :: name :: Nil))) =>
+      case req@DELETE(Path(Seg("notebooks" :: name :: Nil))) =>
         val id = req.parameterValues("id").headOption
         try {
           nbm.deleteNotebook(id, name)
@@ -106,8 +127,10 @@ class Dispatcher(config: ISparkNotebookConfig) extends Logging {
     }
 
     val otherIntent: unfiltered.netty.cycle.Plan.Intent = {
-      case GET(Path("/")) =>
+      case GET(Path("/hello")) =>
         Redirect("/index.html")
+      case req@GET(Path("/about")) =>
+        Redirect("/views/about.html")
 //        ResponseHeader("Access-Control-Allow-Origin", "*" :: Nil) ~> ResponseString("here is the index page~")
 
     }
@@ -135,9 +158,6 @@ class Dispatcher(config: ISparkNotebookConfig) extends Logging {
       JsonContent ~> ResponseString(compact(render(json))) ~> Ok
     }
 
-
-
-
     def getNotebook(id: Option[String], name: String) = {
       try {
         val response = for ((lastMod, name, data) <- nbm.getNotebook(id, name)) yield {
@@ -152,11 +172,6 @@ class Dispatcher(config: ISparkNotebookConfig) extends Logging {
     }
 
   }
-
-
-
-
-
 
 }
 

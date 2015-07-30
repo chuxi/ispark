@@ -28,8 +28,7 @@ class CalcWebSocketService(system: ActorSystem, initScripts: List[String], compi
     var spark: WebSockWrapper = null
 
     private def spawnCalculator(): Unit = {
-      val remoteDeploy = Await.result(remoteDeployFuture, 2 minutes)
-      log.info("start calculato")
+      val remoteDeploy = Await.result(remoteDeployFuture, 2.minutes)
       calculator = context.actorOf(Props(new SparkCalculator()).withDeploy(remoteDeploy))
       log.info("calculator path: " + calculator.toString())
     }
@@ -37,15 +36,17 @@ class CalcWebSocketService(system: ActorSystem, initScripts: List[String], compi
     override def preStart(): Unit = {
 //      iopub = Await.result(ioPubPromise.future, 2 minutes)
 //      shell = Await.result(shellPromise.future, 2 minutes)
-      spark = Await.result(sparkPromise.future, 2 minutes)
+      spark = Await.result(sparkPromise.future, 2.minutes)
       spawnCalculator()
     }
 
     override def receive: Receive = {
+      // does not work now
       case InterruptCalculator =>
         for (op <- currentSessionOperation) {
           calculator.tell(InterruptRequest, op)
         }
+
       case req@SessionRequest(header, session, request) =>
         val operations = new SessionOperationActors(header, session)
         val operationActor = (request: @unchecked) match {
@@ -57,7 +58,7 @@ class CalcWebSocketService(system: ActorSystem, initScripts: List[String], compi
         currentSessionOperation = Some(operation)
         calculator.tell(request, operation)
 
-
+      // watch the child actors, if the calculator is stopped by some exception, restart it
       case Terminated(actor) =>
         log.warning("Termination")
         if (actor == calculator) {
@@ -72,14 +73,14 @@ class CalcWebSocketService(system: ActorSystem, initScripts: List[String], compi
     class SessionOperationActors(header: JValue, session: JValue) {
       def singleExecution(counter: Int) = Props(new Actor {
         override def receive: Actor.Receive = {
-          case StreamResponse(data, name) =>
+//          case StreamResponse(data, name) =>
 //            iopub.send(header, session, "stream", ("data" -> data) ~ ("name" -> name))
 
           case ExecuteResponse(html) =>
 //            iopub.send(header, session, "pyout", ("execution_count" -> counter) ~ ("data" -> ("text/html" -> html)))
 //            iopub.send(header, session, "status", ("execution_state" -> "idle"))
 //            shell.send(header, session, "execute_reply", ("execution_count" -> counter))
-            spark.send(header, session, "spout", ("execution_count" -> counter) ~ ("data" -> ("text/html" -> html)))
+            spark.send(header, session, "spout", ("execution_count" -> counter) ~ ("result" -> html))
             context.stop(self)
 
           case ErrorResponse(msg, incomplete) =>
@@ -90,14 +91,12 @@ class CalcWebSocketService(system: ActorSystem, initScripts: List[String], compi
 //            }
 //            iopub.send(header, session, "status", ("execution_state" -> "idle"))
 //            shell.send(header, session, "execute_reply", ("execution_count" -> counter))
-            spark.send(header, session, "sperr", ("execution_count" -> counter) ~ ("traceback" -> Seq(msg)))
+            spark.send(header, session, "sperr", ("execution_count" -> counter) ~ ("traceback" -> msg))
             context.stop(self)
         }
       })
     }
 
   }
-
-
 
 }

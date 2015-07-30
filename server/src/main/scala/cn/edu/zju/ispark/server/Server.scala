@@ -69,7 +69,7 @@ object Server extends Logging{
 
       .run({svr => {
         afterStart(svr, app)
-        openBrowser("http://%s:%d".format("127.0.0.1", 8080))
+//        openBrowser("http://%s:%d".format("127.0.0.1", 8080))
         println("http port: " + svr.ports.head)
         println("websocket port: " + websocket.ports.head)
       }},

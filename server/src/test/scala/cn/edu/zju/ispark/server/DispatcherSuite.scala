@@ -3,10 +3,9 @@ package cn.edu.zju.ispark.server
 import java.util.concurrent.CountDownLatch
 
 import cn.edu.zju.ispark.common.ISparkNotebookConfig
-import org.apache.http.client.methods._
+import org.apache.http.client.methods.{HttpGet, HttpRequestBase}
 import org.apache.http.impl.client.HttpClients
 import org.scalatest.{BeforeAndAfterAll, FunSuite}
-import unfiltered.request.{DELETE, GET, POST, PUT}
 
 /**
  * Created by king on 15-6-3.
@@ -63,28 +62,24 @@ class DispatcherSuite extends FunSuite with BeforeAndAfterAll {
 
   def serverURL(path: String = "/") = "http://%s:%d%s".format(ServerHost, ServerPort, path)
 
-  def httpGet(path: String): CloseableHttpResponse ={
+  def httpGet(path: String): HttpRequestBase ={
     val client = HttpClients.createDefault()
-    client.execute(new HttpGet(serverURL()))
+    new HttpGet(serverURL(path))
   }
 
-  def assertResponseCode(code: Int, path: String, method: unfiltered.request.Method = GET, data: String = "") = {
+  def assertResponseCode(code: Int, req: HttpRequestBase) = {
     val client = HttpClients.createDefault()
-    val response = method match {
-      case GET => client.execute(new HttpGet(serverURL(path)))
-      case POST => client.execute(new HttpPost(serverURL(path)))
-      case PUT => client.execute(new HttpPut(serverURL(path)))
-      case DELETE => client.execute(new HttpDelete(serverURL(path)))
-    }
-    println(response.toString)
-    println(response.getEntity)
-    assert (code === response.getStatusLine.getStatusCode, "Expected %d code for resource '%s' but response was (%d: %s)".format(code, path, response.getStatusLine.getStatusCode, response.getStatusLine.getReasonPhrase))
-    response
+
+    val response = client.execute(req)
+//    println(response.toString)
+//    println(response.getEntity)
+    assert (code === response.getStatusLine.getStatusCode, "Expected %d code for resource '%s' but response was (%d: %s)".format(code, req.getURI, response.getStatusLine.getStatusCode, response.getStatusLine.getReasonPhrase))
   }
 
 
   test("test") {
-    assertResponseCode(200, "/hello")
+//    val indexGet = httpGet("/")
+    assertResponseCode(200, httpGet("/"))
   }
 
 

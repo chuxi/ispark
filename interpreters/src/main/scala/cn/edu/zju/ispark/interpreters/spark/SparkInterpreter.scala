@@ -275,8 +275,9 @@ class SparkInterpreter(props: Properties) extends Interpreter {
     }
 
     r match {
-      case IR.Incomplete => InterIncomplete("Incomplete expression")
+      case IR.Incomplete => InterIncomplete(out.toString)
       case IR.Success => InterSuccess(out.toString)
+      case IR.Error => InterError(out.toString)
     }
 
   }
